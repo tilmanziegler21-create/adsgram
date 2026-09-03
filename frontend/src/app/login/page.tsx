@@ -4,26 +4,37 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { TelegramLogin, type TelegramAuthUser } from "@/components/TelegramLogin";
 import { ApiError, api } from "@/lib/api";
+import { normalizeBotUsername } from "@/lib/telegram";
 import { useUser } from "@/lib/user-context";
 
 export default function LoginPage() {
   const { user, loginWithTelegram } = useUser();
   const router = useRouter();
-  const [botUsername, setBotUsername] = useState(
-    process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? "",
-  );
+  const [botUsername, setBotUsername] = useState("");
+  const [configError, setConfigError] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (botUsername) return;
+    const fromEnv = normalizeBotUsername(process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME);
+    if (fromEnv) {
+      setBotUsername(fromEnv);
+      return;
+    }
     api
       .getAuthConfig()
       .then((cfg) => {
-        if (cfg.bot_username) setBotUsername(cfg.bot_username);
+        const name = normalizeBotUsername(cfg.bot_username);
+        if (name) {
+          setBotUsername(name);
+        } else {
+          setConfigError("Не удалось получить username бота. Проверьте TELEGRAM_BOT_TOKEN на сервере.");
+        }
       })
-      .catch(() => {});
-  }, [botUsername]);
+      .catch(() => {
+        setConfigError("API недоступен. Проверьте деплой backend.");
+      });
+  }, []);
 
   const handleAuth = useCallback(
     async (tgUser: TelegramAuthUser) => {
@@ -59,11 +70,12 @@ export default function LoginPage() {
             <div className={loading ? "pointer-events-none opacity-60" : ""}>
               <TelegramLogin botUsername={botUsername} onAuth={handleAuth} />
             </div>
-          ) : (
+          ) : configError ? (
             <p className="rounded-xl bg-amber-50 px-4 py-3 text-center text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-300">
-              Укажите <code className="text-xs">TELEGRAM_BOT_USERNAME</code> в .env бэкенда
-              или <code className="text-xs">NEXT_PUBLIC_TELEGRAM_BOT_USERNAME</code> во фронтенде.
+              {configError}
             </p>
+          ) : (
+            <p className="text-center text-sm text-zinc-500">Загружаем виджет Telegram…</p>
           )}
         </div>
 

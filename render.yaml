@@ -1,5 +1,5 @@
 # Adsgram — один Web-сервис на Render (API + бот + сайт)
-# Dashboard → New → Blueprint → tilmanziegler21-create/adsgram
+# TELEGRAM_BOT_USERNAME не обязателен — username берётся из getMe по токену
 
 services:
   - type: web
@@ -13,8 +13,6 @@ services:
       - key: ENVIRONMENT
         value: production
       - key: TELEGRAM_BOT_TOKEN
-        sync: false
-      - key: TELEGRAM_BOT_USERNAME
         sync: false
       - key: STATIC_DIR
         value: /app/static

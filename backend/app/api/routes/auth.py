@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 
 from app.core.config import settings
 from app.services.telegram_auth import verify_telegram_login
+from app.services.telegram_bot import normalize_bot_username, resolve_bot_username
 from app.store.memory import store
 
 router = APIRouter()
@@ -44,7 +45,7 @@ def _profile(user) -> UserProfileOut:
 
 @router.get("/config", response_model=AuthConfigOut)
 async def auth_config():
-    username = settings.TELEGRAM_BOT_USERNAME or None
+    username = await resolve_bot_username()
     return AuthConfigOut(bot_username=username)
 
 
