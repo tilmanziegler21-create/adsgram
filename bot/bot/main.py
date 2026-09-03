@@ -16,7 +16,9 @@ from aiogram.types import (
     ChatMemberUpdated,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
+    MenuButtonWebApp,
     Message,
+    WebAppInfo,
 )
 
 from bot.config import settings
@@ -50,8 +52,8 @@ def _site_keyboard() -> InlineKeyboardMarkup | None:
         return None
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="🌐 Открыть Adsgram", url=f"{site}/")],
-            [InlineKeyboardButton(text="🔐 Войти на сайте", url=f"{site}/login/")],
+            [InlineKeyboardButton(text="🌐 Каталог", web_app=WebAppInfo(url=f"{site}/"))],
+            [InlineKeyboardButton(text="🔐 Войти", web_app=WebAppInfo(url=f"{site}/login/"))],
         ]
     )
 
@@ -70,22 +72,20 @@ def _welcome_text(message: Message) -> str:
         "/id — ваш Telegram ID\n\n"
         "<b>Владельцам каналов:</b> добавьте меня админом с правом публиковать посты — "
         "канал появится в каталоге.\n\n"
-        "<b>Рекламодателям:</b> войдите на сайте через Telegram и покупайте размещения."
+        "<b>Рекламодателям:</b> нажмите «Войти» ниже — вход без привязки домена."
     )
 
 
 def _help_text() -> str:
-    site = settings.public_site_url()
-    login_hint = f"{site}/login/" if site else "сайт Adsgram"
     return (
         "<b>Как подключить канал</b>\n"
         "1. Добавьте бота администратором в канал\n"
         "2. Включите право «Публиковать сообщения»\n"
         "3. Канал автоматически появится в каталоге\n\n"
         "<b>Как купить рекламу</b>\n"
-        f"1. Откройте {login_hint}\n"
-        "2. Войдите через Telegram\n"
-        "3. Выберите канал и оформите заказ\n\n"
+        "1. Нажмите кнопку «Войти» в этом боте\n"
+        "2. Выберите канал в каталоге\n"
+        "3. Оформите заказ\n\n"
         "<b>Одобрение рекламы</b>\n"
         "Владелец канала получает сообщение с кнопками «Одобрить» / «Отклонить».\n\n"
         "По вопросам: напишите сюда любое сообщение — бот ответит."
@@ -129,6 +129,14 @@ async def setup_bot_commands(bot: Bot) -> None:
             BotCommand(command="id", description="Мой Telegram ID"),
         ]
     )
+    site = settings.public_site_url()
+    if site:
+        await bot.set_chat_menu_button(
+            menu_button=MenuButtonWebApp(
+                text="Открыть Adsgram",
+                web_app=WebAppInfo(url=f"{site}/"),
+            )
+        )
 
 
 def create_dispatcher() -> Dispatcher:

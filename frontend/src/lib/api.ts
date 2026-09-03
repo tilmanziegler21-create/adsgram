@@ -79,7 +79,14 @@ export type WalletTransaction = {
 };
 
 export const api = {
-  getAuthConfig: () => request<{ bot_username: string | null }>("/api/auth/config"),
+  getAuthConfig: () =>
+    request<{ bot_username: string | null; bot_link: string | null }>("/api/auth/config"),
+
+  telegramWebAppLogin: (initData: string) =>
+    request<UserProfile>("/api/auth/telegram-webapp", {
+      method: "POST",
+      body: JSON.stringify({ init_data: initData }),
+    }),
 
   telegramLogin: (data: {
     id: number;

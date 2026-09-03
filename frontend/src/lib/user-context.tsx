@@ -17,6 +17,7 @@ type UserContextValue = {
   user: UserProfile | null;
   loading: boolean;
   loginWithTelegram: (tgUser: TelegramAuthUser) => Promise<void>;
+  loginWithWebApp: (initData: string) => Promise<void>;
   logout: () => void;
   refresh: () => Promise<void>;
 };
@@ -52,14 +53,20 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     setUser(profile);
   }, []);
 
+  const loginWithWebApp = useCallback(async (initData: string) => {
+    const profile = await api.telegramWebAppLogin(initData);
+    localStorage.setItem(STORAGE_KEY, profile.id);
+    setUser(profile);
+  }, []);
+
   const logout = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);
     setUser(null);
   }, []);
 
   const value = useMemo(
-    () => ({ user, loading, loginWithTelegram, logout, refresh }),
-    [user, loading, loginWithTelegram, logout, refresh],
+    () => ({ user, loading, loginWithTelegram, loginWithWebApp, logout, refresh }),
+    [user, loading, loginWithTelegram, loginWithWebApp, logout, refresh],
   );
 
   return <UserContext.Provider value={value}>{children}</UserContext.Provider>;
