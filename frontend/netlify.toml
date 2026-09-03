@@ -1,0 +1,18 @@
+# Netlify — TelegramFlow frontend (static)
+# Документация: docs/NETLIFY.md
+
+[build]
+  command = "npm run build"
+  publish = "out"
+
+[build.environment]
+  NODE_VERSION = "20"
+  # Пустая строка: браузер ходит на /api/* → прокси ниже
+  NEXT_PUBLIC_API_URL = ""
+
+# ⚠️ Замените URL на ваш backend (Railway, Fly, VPS, ngrok…)
+[[redirects]]
+  from = "/api/*"
+  to = "https://YOUR-BACKEND-URL.example.com/api/:splat"
+  status = 200
+  force = true

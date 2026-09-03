@@ -1,0 +1,56 @@
+# Adsgram — деплой на Render (Blueprint)
+# Dashboard → New → Blueprint → подключить репозиторий
+# Документация: https://render.com/docs/blueprint-spec
+
+services:
+  # FastAPI (in-memory marketplace)
+  - type: web
+    name: adsgram-api
+    runtime: docker
+    dockerfilePath: backend/Dockerfile
+    dockerContext: backend
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_BOT_USERNAME
+        sync: false
+      - key: FRONTEND_URL
+        fromService:
+          type: web
+          name: adsgram-web
+          envVarKey: RENDER_EXTERNAL_URL
+
+  # Telegram-бот (каналы + approve)
+  - type: worker
+    name: adsgram-bot
+    runtime: docker
+    dockerfilePath: bot/Dockerfile
+    dockerContext: bot
+    plan: free
+    envVars:
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: BACKEND_URL
+        fromService:
+          type: web
+          name: adsgram-api
+          envVarKey: RENDER_EXTERNAL_URL
+
+  # Next.js static export
+  - type: web
+    name: adsgram-web
+    runtime: static
+    buildCommand: cd frontend && npm ci && npm run build
+    staticPublishPath: frontend/out
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        fromService:
+          type: web
+          name: adsgram-api
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: NEXT_PUBLIC_TELEGRAM_BOT_USERNAME
+        sync: false

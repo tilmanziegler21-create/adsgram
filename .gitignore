@@ -1,0 +1,39 @@
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Dependencies
+node_modules/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Next.js
+frontend/.next/
+frontend/out/
+
+# IDE / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Sessions / secrets / uploads
+*.session
+*.session-journal
+data/sessions/
+uploads/
+*.pem
+
+# Logs / coverage
+*.log
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+
+# Docker
+postgres_data/

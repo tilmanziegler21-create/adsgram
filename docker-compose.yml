@@ -1,0 +1,130 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: teleflow-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-teleflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-teleflow}
+      POSTGRES_DB: ${POSTGRES_DB:-teleflow}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-teleflow} -d ${POSTGRES_DB:-teleflow}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: teleflow-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: teleflow-backend
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-teleflow}:${POSTGRES_PASSWORD:-teleflow}@postgres:5432/${POSTGRES_DB:-teleflow}
+      DATABASE_URL_SYNC: postgresql://${POSTGRES_USER:-teleflow}:${POSTGRES_PASSWORD:-teleflow}@postgres:5432/${POSTGRES_DB:-teleflow}
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+  workers:
+    build:
+      context: ./workers
+      dockerfile: Dockerfile
+    container_name: teleflow-workers
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-teleflow}:${POSTGRES_PASSWORD:-teleflow}@postgres:5432/${POSTGRES_DB:-teleflow}
+      DATABASE_URL_SYNC: postgresql://${POSTGRES_USER:-teleflow}:${POSTGRES_PASSWORD:-teleflow}@postgres:5432/${POSTGRES_DB:-teleflow}
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+    volumes:
+      - ./workers:/app
+      - ./data/sessions:/data/sessions
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: celery -A workers.celery_app.celery_app worker --loglevel=info
+
+  beat:
+    build:
+      context: ./workers
+      dockerfile: Dockerfile
+    container_name: teleflow-beat
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-teleflow}:${POSTGRES_PASSWORD:-teleflow}@postgres:5432/${POSTGRES_DB:-teleflow}
+      DATABASE_URL_SYNC: postgresql://${POSTGRES_USER:-teleflow}:${POSTGRES_PASSWORD:-teleflow}@postgres:5432/${POSTGRES_DB:-teleflow}
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+    volumes:
+      - ./workers:/app
+      - ./data/sessions:/data/sessions
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: celery -A workers.celery_app.celery_app beat --loglevel=info
+
+  bot:
+    build:
+      context: ./bot
+      dockerfile: Dockerfile
+    container_name: teleflow-bot
+    env_file:
+      - .env
+    environment:
+      BACKEND_URL: http://backend:8000
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: teleflow-frontend
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  redis_data:
