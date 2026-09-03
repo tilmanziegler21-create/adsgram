@@ -107,6 +107,20 @@ export const api = {
 
   getChannels: () => request<Channel[]>("/api/marketplace/channels"),
 
+  getConnectInfo: () =>
+    request<{ bot_username: string | null; add_bot_url: string | null }>(
+      "/api/marketplace/channels/connect-info",
+    ),
+
+  getMyChannels: (userId: string) =>
+    request<Channel[]>(`/api/marketplace/channels/mine?user_id=${userId}`),
+
+  connectChannel: (userId: string, channelUsername: string) =>
+    request<Channel>("/api/marketplace/channels/connect", {
+      method: "POST",
+      body: JSON.stringify({ user_id: userId, channel_username: channelUsername }),
+    }),
+
   getChannel: (id: string) => request<Channel>(`/api/marketplace/channels/${id}`),
 
   createOrder: (data: {

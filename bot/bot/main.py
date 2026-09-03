@@ -52,6 +52,7 @@ def _site_keyboard() -> InlineKeyboardMarkup | None:
         return None
     return InlineKeyboardMarkup(
         inline_keyboard=[
+            [InlineKeyboardButton(text="➕ Добавить канал", web_app=WebAppInfo(url=f"{site}/add-channel/"))],
             [InlineKeyboardButton(text="🌐 Каталог", web_app=WebAppInfo(url=f"{site}/"))],
             [InlineKeyboardButton(text="🔐 Войти", web_app=WebAppInfo(url=f"{site}/login/"))],
         ]
@@ -68,10 +69,10 @@ def _welcome_text(message: Message) -> str:
         f"{site_line}\n\n"
         "<b>Команды:</b>\n"
         "/start — это сообщение\n"
+        "/addchannel — подключить канал\n"
         "/help — инструкция\n"
         "/id — ваш Telegram ID\n\n"
-        "<b>Владельцам каналов:</b> добавьте меня админом с правом публиковать посты — "
-        "канал появится в каталоге.\n\n"
+        "<b>Владельцам каналов:</b> /addchannel или кнопка «Добавить канал».\n\n"
         "<b>Рекламодателям:</b> нажмите «Войти» ниже — вход без привязки домена."
     )
 
@@ -125,6 +126,7 @@ async def setup_bot_commands(bot: Bot) -> None:
     await bot.set_my_commands(
         [
             BotCommand(command="start", description="Начать"),
+            BotCommand(command="addchannel", description="Добавить канал"),
             BotCommand(command="help", description="Инструкция"),
             BotCommand(command="id", description="Мой Telegram ID"),
         ]
@@ -151,6 +153,33 @@ def create_dispatcher() -> Dispatcher:
             parse_mode=ParseMode.HTML,
             reply_markup=_site_keyboard(),
         )
+
+    @dp.message(Command("addchannel"))
+    async def cmd_addchannel(message: Message) -> None:
+        if message.chat.type != ChatType.PRIVATE:
+            return
+        site = settings.public_site_url()
+        if site:
+            kb = InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [
+                        InlineKeyboardButton(
+                            text="➕ Подключить канал",
+                            web_app=WebAppInfo(url=f"{site}/add-channel/"),
+                        )
+                    ]
+                ]
+            )
+            await message.answer(
+                "<b>Подключение канала</b>\n\n"
+                "1. Нажмите кнопку ниже\n"
+                "2. Добавьте бота админом в канал\n"
+                "3. Введите @username канала и нажмите «Подключить»",
+                parse_mode=ParseMode.HTML,
+                reply_markup=kb,
+            )
+        else:
+            await message.answer(_help_text(), parse_mode=ParseMode.HTML)
 
     @dp.message(Command("help"))
     async def cmd_help(message: Message) -> None:

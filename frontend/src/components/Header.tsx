@@ -6,6 +6,7 @@ import { useUser, userDisplayName } from "@/lib/user-context";
 
 const nav = [
   { href: "/", label: "Каталог" },
+  { href: "/add-channel/", label: "Мой канал" },
   { href: "/orders", label: "Заказы" },
   { href: "/wallet", label: "Баланс" },
 ];

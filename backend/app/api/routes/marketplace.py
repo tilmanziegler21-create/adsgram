@@ -3,6 +3,8 @@
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
+from app.services.channel_connect import ChannelConnectError, connect_channel
+from app.services.telegram_bot import resolve_bot_username
 from app.services import marketplace_memory as svc
 from app.store.memory import DEFAULT_PRICING, store
 
@@ -35,6 +37,16 @@ class ChannelRegister(BaseModel):
     owner_telegram_id: str
     subscribers_count: int = 0
     can_post: bool = False
+
+
+class ChannelConnectIn(BaseModel):
+    user_id: str
+    channel_username: str = Field(min_length=1, max_length=255)
+
+
+class ConnectInfoOut(BaseModel):
+    bot_username: str | None
+    add_bot_url: str | None
 
 
 class AdOrderCreate(BaseModel):
@@ -97,6 +109,36 @@ async def get_channel(channel_id: str):
     ch = store.get_channel(channel_id)
     if not ch or not ch.is_active:
         raise HTTPException(status_code=404, detail="Channel not found")
+    return _channel_out(ch)
+
+
+@router.get("/channels/connect-info", response_model=ConnectInfoOut)
+async def channel_connect_info():
+    bot_username = await resolve_bot_username()
+    add_bot_url = None
+    if bot_username:
+        add_bot_url = f"https://t.me/{bot_username}?startchannel&admin=post_messages"
+    return ConnectInfoOut(bot_username=bot_username, add_bot_url=add_bot_url)
+
+
+@router.get("/channels/mine", response_model=list[ChannelOut])
+async def list_my_channels(user_id: str):
+    user = store.get_user(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    channels = store.list_channels_by_owner(user.telegram_id)
+    return [_channel_out(c) for c in channels]
+
+
+@router.post("/channels/connect", response_model=ChannelOut)
+async def connect_channel_endpoint(payload: ChannelConnectIn):
+    user = store.get_user(payload.user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    try:
+        ch = await connect_channel(user.telegram_id, payload.channel_username)
+    except ChannelConnectError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return _channel_out(ch)
 
 

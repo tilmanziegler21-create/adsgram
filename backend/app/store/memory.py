@@ -136,6 +136,12 @@ class MemoryStore:
             items.sort(key=lambda c: (-c.rating, -c.subscribers_count))
             return items
 
+    def list_channels_by_owner(self, owner_telegram_id: str) -> list[ChannelRecord]:
+        with self._lock:
+            items = [c for c in self.channels.values() if c.owner_telegram_id == owner_telegram_id]
+            items.sort(key=lambda c: c.title.lower())
+            return items
+
     def get_channel(self, channel_id: str) -> ChannelRecord | None:
         with self._lock:
             return self.channels.get(channel_id)
