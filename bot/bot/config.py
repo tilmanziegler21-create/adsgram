@@ -1,5 +1,6 @@
 """Bot configuration."""
 
+import os
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -10,6 +11,10 @@ class Settings(BaseSettings):
 
     TELEGRAM_BOT_TOKEN: str = ""
     BACKEND_URL: str = "http://backend:8000"
+    WEBAPP_URL: str = ""
+
+    def public_site_url(self) -> str:
+        return (self.WEBAPP_URL or os.getenv("RENDER_EXTERNAL_URL", "")).rstrip("/")
 
 
 @lru_cache

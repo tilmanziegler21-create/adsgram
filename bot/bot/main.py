@@ -7,14 +7,89 @@ import logging
 
 import httpx
 from aiogram import Bot, Dispatcher, F
-from aiogram.enums import ChatMemberStatus, ChatType
+from aiogram.enums import ChatMemberStatus, ChatType, ParseMode
+from aiogram.filters import Command, CommandStart
 from aiogram.filters import ChatMemberUpdatedFilter, IS_MEMBER, IS_NOT_MEMBER
-from aiogram.types import CallbackQuery, ChatMemberUpdated
+from aiogram.types import (
+    BotCommand,
+    CallbackQuery,
+    ChatMemberUpdated,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Message,
+)
 
 from bot.config import settings
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+def _user_label(message: Message) -> str:
+    user = message.from_user
+    if not user:
+        return "друг"
+    return user.first_name or user.username or "друг"
+
+
+def _profile_block(message: Message) -> str:
+    user = message.from_user
+    if not user:
+        return ""
+    lines = [f"🆔 Ваш ID: <code>{user.id}</code>"]
+    if user.username:
+        lines.append(f"👤 Username: @{user.username}")
+    else:
+        lines.append("👤 Username: не задан (на сайте вход по ID)")
+    return "\n".join(lines)
+
+
+def _site_keyboard() -> InlineKeyboardMarkup | None:
+    site = settings.public_site_url()
+    if not site:
+        return None
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🌐 Открыть Adsgram", url=f"{site}/")],
+            [InlineKeyboardButton(text="🔐 Войти на сайте", url=f"{site}/login/")],
+        ]
+    )
+
+
+def _welcome_text(message: Message) -> str:
+    site = settings.public_site_url()
+    site_line = f"\n🌐 Сайт: {site}" if site else ""
+    return (
+        f"Привет, <b>{_user_label(message)}</b>! 👋\n\n"
+        "Я бот <b>Adsgram</b> — маркетплейс рекламы в Telegram-каналах.\n\n"
+        f"{_profile_block(message)}\n"
+        f"{site_line}\n\n"
+        "<b>Команды:</b>\n"
+        "/start — это сообщение\n"
+        "/help — инструкция\n"
+        "/id — ваш Telegram ID\n\n"
+        "<b>Владельцам каналов:</b> добавьте меня админом с правом публиковать посты — "
+        "канал появится в каталоге.\n\n"
+        "<b>Рекламодателям:</b> войдите на сайте через Telegram и покупайте размещения."
+    )
+
+
+def _help_text() -> str:
+    site = settings.public_site_url()
+    login_hint = f"{site}/login/" if site else "сайт Adsgram"
+    return (
+        "<b>Как подключить канал</b>\n"
+        "1. Добавьте бота администратором в канал\n"
+        "2. Включите право «Публиковать сообщения»\n"
+        "3. Канал автоматически появится в каталоге\n\n"
+        "<b>Как купить рекламу</b>\n"
+        f"1. Откройте {login_hint}\n"
+        "2. Войдите через Telegram\n"
+        "3. Выберите канал и оформите заказ\n\n"
+        "<b>Одобрение рекламы</b>\n"
+        "Владелец канала получает сообщение с кнопками «Одобрить» / «Отклонить».\n\n"
+        "По вопросам: напишите сюда любое сообщение — бот ответит."
+    )
 
 
 async def register_channel(payload: dict) -> None:
@@ -46,8 +121,59 @@ async def reject_order(order_id: str, owner_telegram_id: str) -> dict:
         return response.json()
 
 
+async def setup_bot_commands(bot: Bot) -> None:
+    await bot.set_my_commands(
+        [
+            BotCommand(command="start", description="Начать"),
+            BotCommand(command="help", description="Инструкция"),
+            BotCommand(command="id", description="Мой Telegram ID"),
+        ]
+    )
+
+
 def create_dispatcher() -> Dispatcher:
     dp = Dispatcher()
+
+    @dp.message(CommandStart())
+    async def cmd_start(message: Message) -> None:
+        if message.chat.type != ChatType.PRIVATE:
+            return
+        await message.answer(
+            _welcome_text(message),
+            parse_mode=ParseMode.HTML,
+            reply_markup=_site_keyboard(),
+        )
+
+    @dp.message(Command("help"))
+    async def cmd_help(message: Message) -> None:
+        if message.chat.type != ChatType.PRIVATE:
+            return
+        await message.answer(
+            _help_text(),
+            parse_mode=ParseMode.HTML,
+            reply_markup=_site_keyboard(),
+        )
+
+    @dp.message(Command("id"))
+    async def cmd_id(message: Message) -> None:
+        if message.chat.type != ChatType.PRIVATE:
+            return
+        await message.answer(
+            f"<b>Ваш профиль Telegram</b>\n\n{_profile_block(message)}",
+            parse_mode=ParseMode.HTML,
+        )
+
+    @dp.message(F.chat.type == ChatType.PRIVATE)
+    async def on_private_message(message: Message) -> None:
+        if message.text and message.text.startswith("/"):
+            return
+        await message.answer(
+            "Я на связи ✅\n\n"
+            f"{_profile_block(message)}\n\n"
+            "Напишите /help — инструкция по каналам и рекламе.",
+            parse_mode=ParseMode.HTML,
+            reply_markup=_site_keyboard(),
+        )
 
     @dp.my_chat_member(ChatMemberUpdatedFilter(IS_MEMBER))
     async def bot_added(event: ChatMemberUpdated, bot: Bot) -> None:
@@ -86,6 +212,18 @@ def create_dispatcher() -> Dispatcher:
         )
         logger.info("Registered channel %s (%s)", chat.title, chat.id)
 
+        if owner.user:
+            site = settings.public_site_url()
+            site_line = f"\n\nКаталог: {site}/" if site else ""
+            try:
+                await bot.send_message(
+                    owner.user.id,
+                    f"✅ Канал <b>{chat.title or 'без названия'}</b> подключён к Adsgram.{site_line}",
+                    parse_mode=ParseMode.HTML,
+                )
+            except Exception:
+                logger.warning("Could not notify owner %s", owner.user.id)
+
     @dp.my_chat_member(ChatMemberUpdatedFilter(IS_NOT_MEMBER))
     async def bot_removed(event: ChatMemberUpdated) -> None:
         logger.info("Bot removed from chat %s", event.chat.id)
@@ -121,7 +259,9 @@ async def main() -> None:
         raise RuntimeError("TELEGRAM_BOT_TOKEN is required")
 
     bot = Bot(token=settings.TELEGRAM_BOT_TOKEN)
+    await setup_bot_commands(bot)
     dp = create_dispatcher()
+    logger.info("Adsgram bot started (site=%s)", settings.public_site_url() or "not set")
     await dp.start_polling(bot)
 
 
