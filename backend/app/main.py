@@ -1,9 +1,11 @@
 """TelegramFlow Backend — FastAPI application."""
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.api.router import api_router
 from app.core.config import settings
@@ -56,3 +58,8 @@ app.include_router(api_router, prefix="/api")
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+static_dir = settings.STATIC_DIR
+if static_dir and Path(static_dir).is_dir():
+    app.mount("/", StaticFiles(directory=static_dir, html=True), name="frontend")

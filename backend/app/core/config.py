@@ -27,6 +27,7 @@ class Settings(BaseSettings):
 
     CORS_ORIGINS: list[str] = ["http://localhost:3000"]
     FRONTEND_URL: str = ""
+    STATIC_DIR: str = ""
 
     # Telegram engine: Hydrogram (Pyrogram-compatible maintained fork)
     TELEGRAM_ENGINE: str = "hydrogram"
